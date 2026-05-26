@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Premarket Scanner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e14;
+    --bg2: #0f1520;
+    --bg3: #151d2e;
+    --bg4: #1a2438;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8edf5;
+    --text2: #7a8fa8;
+    --text3: #4a5f78;
+    --green: #00d48a;
+    --green-bg: rgba(0,212,138,0.08);
+    --green-border: rgba(0,212,138,0.2);
+    --red: #ff4f5e;
+    --red-bg: rgba(255,79,94,0.08);
+    --red-border: rgba(255,79,94,0.2);
+    --amber: #f5a623;
+    --amber-bg: rgba(245,166,35,0.08);
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    padding: 16px;
+    min-width: 320px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--green);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .badge-live { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .badge-idle { background: rgba(255,255,255,0.04); color: var(--text3); border: 1px solid var(--border); }
+  .badge-err  { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245,166,35,0.2); }
+  .updated { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-left: auto; }
+  .cntdown { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  @media(max-width:600px){ .stats { grid-template-columns: repeat(2,1fr); } }
+  .stat {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:var(--border2); }
+  .stat.boom::before { background: var(--green); }
+  .stat.dump::before { background: var(--red); }
+  .stat-label { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing:.04em; margin-bottom:4px; }
+  .stat-val { font-size: 24px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .stat.boom .stat-val { color: var(--green); }
+  .stat.dump .stat-val { color: var(--red); }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .ctrl-group { display: flex; align-items: center; gap: 6px; }
+  .ctrl-label { font-size: 10px; color: var(--text3); font-family: var(--mono); white-space: nowrap; }
+  select {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 5px 22px 5px 8px;
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%234a5f78' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+  }
+  select:hover { border-color: rgba(255,255,255,0.2); }
+  .btn {
+    font-size: 11px; font-family: var(--mono); font-weight: 600;
+    padding: 6px 12px; border-radius: 5px;
+    border: 1px solid var(--border2);
+    background: var(--bg3); color: var(--text);
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    letter-spacing: .03em; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg4); border-color: rgba(255,255,255,0.2); }
+  .btn.active { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+  .table-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  thead tr { background: var(--bg3); }
+  th {
+    padding: 8px 12px; text-align: left;
+    font-size: 9px; font-family: var(--mono); font-weight: 600;
+    color: var(--text3); letter-spacing: .08em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td {
+    padding: 9px 12px; font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text); white-space: nowrap; vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.boom-row { background: rgba(0,212,138,0.04); }
+  tr.boom-row:hover { background: rgba(0,212,138,0.08); }
+  tr:not(.boom-row):hover { background: rgba(255,255,255,0.02); }
+
+  .sym { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing:.02em; }
+  .name-cell { font-size: 11px; color: var(--text3); max-width: 120px; overflow:hidden; text-overflow:ellipsis; }
+  .price-cell { font-family: var(--mono); font-size: 12px; }
+  .pct-up { color: var(--green); font-family: var(--mono); font-weight: 600; }
+  .pct-dn { color: var(--red); font-family: var(--mono); font-weight: 600; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; font-family: var(--mono); font-weight: 600;
+    padding: 2px 7px; border-radius: 4px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .pill-boom { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .pill-hot  { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245,166,35,0.2); }
+  .pill-dump { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
+  .pill-flat { background: rgba(255,255,255,0.03); color: var(--text3); border: 1px solid var(--border); }
+
+  .vbar-bg { display:inline-block; width:40px; height:4px; border-radius:2px; background:rgba(255,255,255,0.07); vertical-align:middle; overflow:hidden; }
+  .vbar-fill { height:100%; border-radius:2px; background:var(--green); }
+  .vbar-fill.hi { background:var(--red); }
+  .vol-ratio { font-size:10px; color:var(--text3); font-family:var(--mono); }
+
+  .spark-wrap { display:flex; align-items:center; gap:5px; }
+  .spark-dir { font-size:11px; font-family:var(--mono); font-weight:600; }
+
+  .empty-row td { text-align:center; padding:2.5rem; color:var(--text3); font-family:var(--mono); font-size:12px; }
+
+  .footer {
+    margin-top: 12px;
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--text3); font-family: var(--mono);
+    flex-wrap: wrap; gap: 4px;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .live-dot {
+    display:inline-block; width:5px; height:5px;
+    border-radius:50%; background:var(--green);
+    animation:pulse 1.5s ease-in-out infinite;
+    vertical-align:middle; margin-right:2px;
+  }
+
+  /* proxy status bar */
+  .proxy-bar {
+    font-size: 10px; font-family: var(--mono);
+    color: var(--text3); margin-bottom: 10px;
+    padding: 6px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .proxy-dot { width:5px;height:5px;border-radius:50%;background:var(--text3);display:inline-block; }
+  .proxy-dot.ok { background:var(--green); }
+  .proxy-dot.fail { background:var(--red); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    Premarket Scanner
+  </div>
+  <span class="badge badge-idle" id="badge">IDLE</span>
+  <span class="cntdown" id="cntdown"></span>
+  <span class="updated" id="updated"></span>
+</div>
+
+<div class="proxy-bar">
+  <span class="proxy-dot" id="proxy-dot"></span>
+  <span id="proxy-status">Checking data connection...</span>
+</div>
+
+<div class="stats">
+  <div class="stat boom"><div class="stat-label">🚀 BOOMING</div><div class="stat-val" id="s-boom">—</div></div>
+  <div class="stat"><div class="stat-label">🔥 HOT</div><div class="stat-val" id="s-hot">—</div></div>
+  <div class="stat dump"><div class="stat-label">📉 DUMPING</div><div class="stat-val" id="s-dump">—</div></div>
+  <div class="stat"><div class="stat-label">👁 TRACKED</div><div class="stat-val" id="s-total">—</div></div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Boom at</span>
+    <select id="thresh">
+      <option value="5">+5%</option>
+      <option value="10" selected>+10%</option>
+      <option value="15">+15%</option>
+      <option value="20">+20%</option>
+      <option value="30">+30%</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Refresh</span>
+    <select id="interval">
+      <option value="30">30s</option>
+      <option value="60" selected>1 min</option>
+      <option value="120">2 min</option>
+      <option value="300">5 min</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Min vol</span>
+    <select id="minvol">
+      <option value="0">Any</option>
+      <option value="50000">50K+</option>
+      <option value="100000" selected>100K+</option>
+      <option value="500000">500K+</option>
+      <option value="1000000">1M+</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Show</span>
+    <select id="show">
+      <option value="all" selected>All movers</option>
+      <option value="boom">Boomers only</option>
+      <option value="gainers">Gainers only</option>
+    </select>
+  </div>
+  <button class="btn" id="start-btn" onclick="toggleScan()">▶ Start</button>
+  <button class="btn" style="opacity:.7" onclick="doFetch()">↺ Now</button>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th><th>Name</th><th>Price</th><th>Pre-mkt %</th>
+        <th>Pre vol</th><th>Vol vs avg</th><th>Today's trend</th><th>Signal</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr class="empty-row"><td colspan="8">▶ Press Start to load live premarket data</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="footer">
+  <span>Yahoo Finance · US premarket 4:00–9:30 AM ET · <span id="f-count"></span></span>
+  <span id="f-src"></span>
+</div>
+
+<script>
+const TICKERS = [
+  'AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','AMD','PLTR','SMCI',
+  'RIVN','GME','AMC','SOFI','MARA','COIN','RKLB','IONQ','HOOD','NFLX',
+  'INTC','MU','ARM','AVGO','TSM','SNOW','CELH','SOUN','ACHR','JOBY',
+  'UBER','LYFT','SHOP','SQ','PYPL','SNAP','PINS','ROKU','SPOT','DKNG'
+];
+
+// Multiple CORS proxies - tries each until one works
+const PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`
+];
+
+let running = false, timer = null, cntTimer = null, cdSecs = 0;
+let sparkHistory = {};
+let workingProxy = null;
+
+async function findProxy() {
+  const testUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=AAPL&fields=symbol,preMarketPrice`;
+  for (let i = 0; i < PROXIES.length; i++) {
+    try {
+      const r = await fetch(PROXIES[i](testUrl), { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) continue;
+      const d = await r.json();
+      // allorigins wraps in {contents:...}
+      const text = d.contents !== undefined ? d.contents : JSON.stringify(d);
+      const parsed = JSON.parse(typeof text === 'string' ? text : JSON.stringify(text));
+      if (parsed?.quoteResponse?.result?.length) {
+        workingProxy = PROXIES[i];
+        setProxyStatus(true, 'Connected · data flowing');
+        return true;
+      }
+    } catch(e) { continue; }
+  }
+  setProxyStatus(false, 'All proxies failed · showing simulated data');
+  return false;
+}
+
+function setProxyStatus(ok, msg) {
+  const dot = document.getElementById('proxy-dot');
+  const status = document.getElementById('proxy-status');
+  dot.className = 'proxy-dot ' + (ok ? 'ok' : 'fail');
+  status.textContent = msg;
+}
+
+async function proxyFetch(url) {
+  if (!workingProxy) throw new Error('no proxy');
+  const r = await fetch(workingProxy(url));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  // allorigins wraps response in {contents: "...json string..."}
+  if (d.contents !== undefined) return JSON.parse(d.contents);
+  return d;
+}
+
+function toggleScan() {
+  running = !running;
+  const btn = document.getElementById('start-btn');
+  const badge = document.getElementById('badge');
+  if (running) {
+    btn.textContent = '⏹ Stop'; btn.classList.add('active');
+    badge.textContent = 'LIVE'; badge.className = 'badge badge-live';
+    doFetch(); scheduleNext();
+  } else {
+    clearTimeout(timer); clearInterval(cntTimer);
+    btn.textContent = '▶ Start'; btn.classList.remove('active');
+    badge.textContent = 'IDLE'; badge.className = 'badge badge-idle';
+    document.getElementById('cntdown').textContent = '';
+  }
+}
+
+function scheduleNext() {
+  if (!running) return;
+  clearTimeout(timer); clearInterval(cntTimer);
+  const secs = parseInt(document.getElementById('interval').value);
+  cdSecs = secs; tick();
+  cntTimer = setInterval(() => { cdSecs--; tick(); if (cdSecs <= 0) clearInterval(cntTimer); }, 1000);
+  timer = setTimeout(() => { if (running) { doFetch(); scheduleNext(); } }, secs * 1000);
+}
+function tick() {
+  document.getElementById('cntdown').textContent = running && cdSecs > 0 ? 'next in ' + cdSecs + 's' : '';
+}
+
+async function fetchIntraday(symbol) {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1m&includePrePost=true`;
+    const d = await proxyFetch(url);
+    const result = d?.chart?.result?.[0];
+    if (!result) return null;
+    const timestamps = result.timestamp;
+    const closes = result.indicators?.quote?.[0]?.close;
+    if (!timestamps || !closes) return null;
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const preEnd   = new Date(dateStr + 'T13:30:00Z').getTime() / 1000;
+    const preStart = new Date(dateStr + 'T08:00:00Z').getTime() / 1000;
+    const pts = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (timestamps[i] >= preStart && timestamps[i] <= preEnd && closes[i] != null) pts.push(closes[i]);
+    }
+    return pts.length >= 2 ? pts : null;
+  } catch(e) { return null; }
+}
+
+function makeSpark(prices, pct) {
+  if (!prices || prices.length < 2) return makeSimSpark(pct);
+  const w = 80, h = 28, pad = 2;
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 0.01;
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const color = isUp ? '#00d48a' : '#ff4f5e';
+  const fillColor = isUp ? 'rgba(0,212,138,0.1)' : 'rgba(255,79,94,0.1)';
+  const pts = prices.map((v, i) => {
+    const x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+    const y = h - pad - 3 - ((v - min) / range) * (h - pad * 2 - 3);
+    return [+x.toFixed(1), +y.toFixed(1)];
+  });
+  const poly = pts.map(p => p[0]+','+p[1]).join(' ');
+  const area = 'M'+pts[0][0]+','+(h-pad)+' L'+pts.map(p=>p[0]+','+p[1]).join(' L')+' L'+pts[pts.length-1][0]+','+(h-pad)+' Z';
+  const [lx,ly] = pts[pts.length-1];
+  const dir = isUp ? '↑' : '↓';
+  return `<div class="spark-wrap">
+    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      <path d="${area}" fill="${fillColor}"/>
+      <polyline points="${poly}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${lx}" cy="${ly}" r="2.2" fill="${color}"/>
+    </svg>
+    <span class="spark-dir" style="color:${color}">${dir}</span>
+  </div>`;
+}
+
+function makeSimSpark(pct) {
+  const n = 18; let v = 0.5; const pts = [];
+  for (let i = 0; i < n; i++) {
+    const bias = pct > 0 ? 0.025 : -0.025;
+    v = Math.max(0.05, Math.min(0.95, v + bias + (Math.random()-0.5)*0.09));
+    pts.push(v);
+  }
+  pts[pts.length-1] = Math.min(0.95, Math.max(0.05, 0.5 + (pct/100)*1.2));
+  return makeSpark(pts.map(p => 10 + p * 10), pct);
+}
+
+async function doFetch() {
+  if (!workingProxy) {
+    setProxyStatus(false, 'Finding best proxy...');
+    const ok = await findProxy();
+    if (!ok) { renderFallback(); return; }
+  }
+  const symbols = TICKERS.join(',');
+  const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=symbol,shortName,regularMarketPrice,preMarketPrice,preMarketChangePercent,preMarketVolume,averageDailyVolume10Day`;
+  try {
+    const d = await proxyFetch(url);
+    const quotes = d?.quoteResponse?.result;
+    if (!quotes || !quotes.length) throw new Error('empty');
+
+    const now = Date.now();
+    quotes.forEach(q => {
+      if (q.preMarketPrice) {
+        if (!sparkHistory[q.symbol]) sparkHistory[q.symbol] = [];
+        const hist = sparkHistory[q.symbol];
+        if (!hist.length || now - hist[hist.length-1].t > 5000) hist.push({ t: now, p: q.preMarketPrice });
+        if (hist.length > 200) hist.shift();
+      }
+    });
+
+    const top = [...quotes]
+      .filter(q => q.preMarketChangePercent != null)
+      .sort((a,b) => Math.abs(b.preMarketChangePercent) - Math.abs(a.preMarketChangePercent))
+      .slice(0, 15);
+    const intradayMap = {};
+    await Promise.all(top.map(async q => {
+      const pts = await fetchIntraday(q.symbol);
+      if (pts) intradayMap[q.symbol] = pts;
+    }));
+
+    renderRows(quotes, intradayMap);
+    document.getElementById('f-src').textContent = 'live · yahoo finance';
+    if (running) {
+      const b = document.getElementById('badge');
+      b.innerHTML = '<span class="live-dot"></span> LIVE';
+      b.className = 'badge badge-live';
+    }
+  } catch(e) {
+    workingProxy = null;
+    renderFallback();
+  }
+}
+
+function renderFallback() {
+  const seed = Math.floor(Date.now() / 45000);
+  function sr(s,lo,hi){let x=Math.sin(s*9301+49297)*233280;x=x-Math.floor(x);return lo+x*(hi-lo);}
+  const quotes = TICKERS.map((sym,i) => ({
+    symbol:sym, shortName:sym,
+    regularMarketPrice: sr(seed+i,5,700),
+    preMarketPrice: null,
+    preMarketChangePercent: sr(seed+i*7+1,-28,55)-15,
+    preMarketVolume: Math.round(sr(seed+i*3,20000,6000000)),
+    averageDailyVolume10Day: Math.round(sr(seed+i*5,100000,4000000)),
+  }));
+  renderRows(quotes, {});
+  document.getElementById('f-src').textContent = 'simulated data';
+  const b = document.getElementById('badge'); b.textContent = 'DEMO'; b.className = 'badge badge-err';
+}
+
+function fmtVol(v) {
+  if (!v) return '—';
+  if (v>=1e6) return (v/1e6).toFixed(1)+'M';
+  if (v>=1e3) return Math.round(v/1e3)+'K';
+  return String(v);
+}
+
+function renderRows(quotes, intradayMap) {
+  const thresh = parseInt(document.getElementById('thresh').value);
+  const minvol  = parseInt(document.getElementById('minvol').value);
+  const show    = document.getElementById('show').value;
+
+  let rows = quotes.filter(q => q.preMarketChangePercent != null).filter(q => (q.preMarketVolume||0) >= minvol);
+  if (show === 'boom')    rows = rows.filter(r => r.preMarketChangePercent >= thresh);
+  else if (show === 'gainers') rows = rows.filter(r => r.preMarketChangePercent > 0);
+  rows.sort((a,b) => b.preMarketChangePercent - a.preMarketChangePercent);
+
+  document.getElementById('s-boom').textContent  = rows.filter(r=>r.preMarketChangePercent>=thresh).length;
+  document.getElementById('s-hot').textContent   = rows.filter(r=>r.preMarketChangePercent>=thresh/2&&r.preMarketChangePercent<thresh).length;
+  document.getElementById('s-dump').textContent  = rows.filter(r=>r.preMarketChangePercent<=-(thresh/2)).length;
+  document.getElementById('s-total').textContent = rows.length;
+  document.getElementById('f-count').textContent = rows.length + ' stocks';
+  document.getElementById('updated').textContent = new Date().toLocaleTimeString();
+
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="8">No stocks match filters</td></tr>'; return; }
+
+  tbody.innerHTML = rows.map(q => {
+    const pct   = q.preMarketChangePercent;
+    const price = q.preMarketPrice || q.regularMarketPrice;
+    const avg   = q.averageDailyVolume10Day || 1;
+    const vol   = q.preMarketVolume || 0;
+    const ratio = vol / avg;
+    const barW  = Math.min(100, ratio * 20);
+    const isBoom = pct >= thresh;
+    const isHot  = pct >= thresh/2 && pct < thresh;
+    const isDump = pct <= -(thresh/2);
+    const pctClass = pct >= 0 ? 'pct-up' : 'pct-dn';
+    const sign = pct >= 0 ? '+' : '';
+    let sig = '<span class="pill pill-flat">FLAT</span>';
+    if (isBoom) sig = '<span class="pill pill-boom">🚀 BOOM</span>';
+    else if (isHot)  sig = '<span class="pill pill-hot">🔥 HOT</span>';
+    else if (isDump) sig = '<span class="pill pill-dump">📉 DUMP</span>';
+    let sparkPts = intradayMap[q.symbol] || null;
+    if (!sparkPts && sparkHistory[q.symbol]?.length >= 2) sparkPts = sparkHistory[q.symbol].map(h=>h.p);
+    const sparkHtml = makeSpark(sparkPts, pct);
+    const name = (q.shortName||q.symbol).substring(0,16);
+    return `<tr${isBoom?' class="boom-row"':''}>
+      <td><span class="sym">${q.symbol}</span></td>
+      <td class="name-cell">${name}</td>
+      <td class="price-cell">$${price?price.toFixed(2):'—'}</td>
+      <td><span class="${pctClass}">${sign}${pct.toFixed(2)}%</span></td>
+      <td class="price-cell">${fmtVol(vol)}</td>
+      <td><span class="vbar-bg"><span class="vbar-fill ${ratio>2?'hi':''}" style="width:${Math.round(barW)}%"></span></span> <span class="vol-ratio">${ratio.toFixed(1)}x</span></td>
+      <td>${sparkHtml}</td>
+      <td>${sig}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Auto-check proxy on load
+findProxy();
+</script>
+</body>
+</html>

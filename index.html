@@ -450,11 +450,6 @@ function makeSimSpark(pct) {
 }
 
 async function doFetch() {
-  if (!workingProxy) {
-    setProxyStatus(false, 'Finding best proxy...');
-    const ok = await findProxy();
-    if (!ok) { renderFallback(); return; }
-  }
   const symbols = TICKERS.join(',');
   const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=symbol,shortName,regularMarketPrice,preMarketPrice,preMarketChangePercent,preMarketVolume,averageDailyVolume10Day`;
   try {

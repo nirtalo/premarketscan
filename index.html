@@ -326,37 +326,11 @@ const TICKERS = [
   'UBER','LYFT','SHOP','SQ','PYPL','SNAP','PINS','ROKU','SPOT','DKNG'
 ];
 
-// Multiple CORS proxies - tries each until one works
-const PROXIES = [
-  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  url => `https://thingproxy.freeboard.io/fetch/${url}`
-];
+// Your personal Cloudflare Worker proxy
+const CF_WORKER = 'https://premarketscan.nirohayon.workers.dev';
 
 let running = false, timer = null, cntTimer = null, cdSecs = 0;
 let sparkHistory = {};
-let workingProxy = null;
-
-async function findProxy() {
-  const testUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=AAPL&fields=symbol,preMarketPrice`;
-  for (let i = 0; i < PROXIES.length; i++) {
-    try {
-      const r = await fetch(PROXIES[i](testUrl), { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) continue;
-      const d = await r.json();
-      // allorigins wraps in {contents:...}
-      const text = d.contents !== undefined ? d.contents : JSON.stringify(d);
-      const parsed = JSON.parse(typeof text === 'string' ? text : JSON.stringify(text));
-      if (parsed?.quoteResponse?.result?.length) {
-        workingProxy = PROXIES[i];
-        setProxyStatus(true, 'Connected · data flowing');
-        return true;
-      }
-    } catch(e) { continue; }
-  }
-  setProxyStatus(false, 'All proxies failed · showing simulated data');
-  return false;
-}
 
 function setProxyStatus(ok, msg) {
   const dot = document.getElementById('proxy-dot');
@@ -365,14 +339,27 @@ function setProxyStatus(ok, msg) {
   status.textContent = msg;
 }
 
+async function findProxy() {
+  try {
+    const testUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=AAPL&fields=symbol,preMarketPrice`;
+    const r = await fetch(`${CF_WORKER}/?url=${encodeURIComponent(testUrl)}`, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d?.quoteResponse?.result?.length) {
+      setProxyStatus(true, 'Connected · Cloudflare Worker · data flowing');
+      return true;
+    }
+    throw new Error('empty response');
+  } catch(e) {
+    setProxyStatus(false, 'Worker unreachable · showing simulated data');
+    return false;
+  }
+}
+
 async function proxyFetch(url) {
-  if (!workingProxy) throw new Error('no proxy');
-  const r = await fetch(workingProxy(url));
+  const r = await fetch(`${CF_WORKER}/?url=${encodeURIComponent(url)}`);
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const d = await r.json();
-  // allorigins wraps response in {contents: "...json string..."}
-  if (d.contents !== undefined) return JSON.parse(d.contents);
-  return d;
+  return await r.json();
 }
 
 function toggleScan() {
@@ -503,7 +490,6 @@ async function doFetch() {
       b.className = 'badge badge-live';
     }
   } catch(e) {
-    workingProxy = null;
     renderFallback();
   }
 }

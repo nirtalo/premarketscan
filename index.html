@@ -341,7 +341,7 @@ function setProxyStatus(ok, msg) {
 
 async function findProxy() {
   try {
-    const testUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=AAPL&fields=symbol,preMarketPrice`;
+    const testUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=AAPL&fields=symbol%2CpreMarketPrice`;
     const r = await fetch(`${CF_WORKER}/?url=${testUrl}`, { signal: AbortSignal.timeout(6000) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
@@ -451,7 +451,8 @@ function makeSimSpark(pct) {
 
 async function doFetch() {
   const symbols = TICKERS.join(',');
-  const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=symbol,shortName,regularMarketPrice,preMarketPrice,preMarketChangePercent,preMarketVolume,averageDailyVolume10Day`;
+  const fields = ['symbol','shortName','regularMarketPrice','preMarketPrice','preMarketChangePercent','preMarketVolume','averageDailyVolume10Day'].join('%2C');
+  const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=${fields}`;
   try {
     const d = await proxyFetch(url);
     const quotes = d?.quoteResponse?.result;

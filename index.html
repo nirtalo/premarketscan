@@ -460,13 +460,20 @@ function makeSimSpark(pct) {
 
 async function doFetch() {
   const symbols = TICKERS.join(',');
-  const fields = 'symbol,shortName,regularMarketPrice,preMarketPrice,preMarketChangePercent,preMarketVolume,averageDailyVolume10Day';
-  const url = `https://query2.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&fields=${fields}&corsDomain=finance.yahoo.com&crumb=`;
+  const url = `https://financialmodelingprep.com/api/v3/quote/${symbols.split(',').join(',')}?apikey=demo`;
   try {
     const d = await proxyFetch(url);
-    const quotes = d?.quoteResponse?.result;
+    const raw = Array.isArray(d) ? d : d?.quoteResponse?.result;
+    const quotes = (raw || []).map(q => ({
+      symbol: q.symbol,
+      shortName: q.name || q.symbol,
+      regularMarketPrice: q.price,
+      preMarketPrice: q.price + (q.change || 0),
+      preMarketChangePercent: q.changesPercentage || 0,
+      preMarketVolume: q.volume || 0,
+      averageDailyVolume10Day: q.avgVolume || 1,
+    }));
     if (!quotes || !quotes.length) throw new Error('empty');
-
     const now = Date.now();
     quotes.forEach(q => {
       if (q.preMarketPrice) {
@@ -480,7 +487,7 @@ async function doFetch() {
     const intradayMap = {};
 
     renderRows(quotes, intradayMap);
-    document.getElementById('f-src').textContent = 'live · yahoo finance';
+    document.getElementById('f-src').textContent = 'live · financialmodelingprep';
     if (running) {
       const b = document.getElementById('badge');
       b.innerHTML = '<span class="live-dot"></span> LIVE';

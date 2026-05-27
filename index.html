@@ -460,7 +460,7 @@ function makeSimSpark(pct) {
 
 async function doFetch() {
   const symbols = TICKERS.join(',');
-  const url = `https://financialmodelingprep.com/api/v3/quote/${symbols.split(',').join(',')}?apikey=demo`;
+  const url = `https://financialmodelingprep.com/api/v3/quote/${symbols}?apikey=jBV0UN0N9rPVHsqcvihBWGKA8NNsp1V4`;
   try {
     const d = await proxyFetch(url);
     const raw = Array.isArray(d) ? d : d?.quoteResponse?.result;

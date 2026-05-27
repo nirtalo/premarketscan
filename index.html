@@ -477,15 +477,7 @@ async function doFetch() {
       }
     });
 
-    const top = [...quotes]
-      .filter(q => q.preMarketChangePercent != null)
-      .sort((a,b) => Math.abs(b.preMarketChangePercent) - Math.abs(a.preMarketChangePercent))
-      .slice(0, 15);
     const intradayMap = {};
-    await Promise.all(top.map(async q => {
-      const pts = await fetchIntraday(q.symbol);
-      if (pts) intradayMap[q.symbol] = pts;
-    }));
 
     renderRows(quotes, intradayMap);
     document.getElementById('f-src').textContent = 'live · yahoo finance';
